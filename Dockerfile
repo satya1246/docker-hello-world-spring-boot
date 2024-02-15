@@ -1,27 +1,13 @@
-# Maven build container 
+# You can change this base image to anything else
+# But make sure to use the correct version of Java
+FROM adoptopenjdk/openjdk11:alpine-jre
 
-FROM maven:3.8.5-openjdk-11 AS maven_build
+# Simply the artifact path
+ARG artifact=target/spring-boot-web.jar
 
-COPY pom.xml /tmp/
+WORKDIR /opt/app
 
-COPY src /tmp/src/
+COPY ${artifact} app.jar
 
-WORKDIR /tmp/
-
-RUN mvn package
-
-#pull base image
-
-FROM eclipse-temurin:11
-
-#maintainer 
-MAINTAINER dstar55@yahoo.com
-#expose port 8080
-EXPOSE 8080
-
-#default command
-CMD java -jar /data/hello-world-0.1.0.jar
-
-#copy hello world to docker image from builder image
-
-COPY --from=maven_build /tmp/target/hello-world-0.1.0.jar /data/hello-world-0.1.0.jar
+# This should not be changed
+ENTRYPOINT ["java","-jar","app.jar"]
