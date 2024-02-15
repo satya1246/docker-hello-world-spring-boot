@@ -16,6 +16,12 @@ pipeline {
     }
 
     stages {
+	stage('Maven Build') {
+            steps {
+                // Use Maven to build the Spring Boot application
+                sh 'mvn clean package'
+            }
+        }
         stage('Build Docker Image') {
             steps {
                 script {
