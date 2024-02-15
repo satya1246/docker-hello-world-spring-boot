@@ -1,59 +1,43 @@
-node {
-    // reference to maven
-    // ** NOTE: This 'maven-3.6.1' Maven tool must be configured in the Jenkins Global Configuration.   
-    def mvnHome = tool 'maven-3.8.5'
-
-    // holds reference to docker image
-    def dockerImage
-    // ip address of the docker private repository(nexus)
-    
-    def dockerRepoUrl = "localhost:8083"
-    def dockerImageName = "hello-world-java"
-    def dockerImageTag = "${dockerRepoUrl}/${dockerImageName}:${env.BUILD_NUMBER}"
-    
-    stage('Clone Repo') { // for display purposes
-      // Get some code from a GitHub repository
-      git 'https://github.com/dstar55/docker-hello-world-spring-boot.git'
-      // Get the Maven tool.
-      // ** NOTE: This 'maven-3.6.1' Maven tool must be configured
-      // **       in the global configuration.           
-      mvnHome = tool 'maven-3.8.5'
-    }    
-  
-    stage('Build Project') {
-      // build project via maven
-      sh "'${mvnHome}/bin/mvn' -Dmaven.test.failure.ignore clean package"
+pipeline {
+    agent  
+	{
+	docker {
+      image 'abhishekf5/maven-abhishek-docker-agent:v1'
+      args '--user root -v /var/run/docker.sock:/var/run/docker.sock' // mount Docker socket to access the host's Docker daemon
     }
-	
-	stage('Publish Tests Results'){
-      parallel(
-        publishJunitTestsResultsToJenkins: {
-          echo "Publish junit Tests Results"
-		  junit '**/target/surefire-reports/TEST-*.xml'
-		  archive 'target/*.jar'
-        },
-        publishJunitTestsResultsToSonar: {
-          echo "This is branch b"
-      })
-    }
-		
-    stage('Build Docker Image') {
-      // build docker image
-      sh "whoami"
-      //sh "ls -all /var/run/docker.sock"
-      sh "mv ./target/hello*.jar ./data" 
-      
-      dockerImage = docker.build("hello-world-java")
-    }
-   
-    stage('Deploy Docker Image'){
-      
-      // deploy docker image to nexus
+	}
 
-      echo "Docker Image Tag Name: ${dockerImageTag}"
+    environment {
+        // Define environment variables
+        //#DOCKER_HUB_USERNAME = credentials('docker-hub-username')
+        //#DOCKER_HUB_PASSWORD = credentials('docker-hub-password')
+		DOCKER_HUB_CREDENTIALS = credentials('docker-hub-credentials')
+        DOCKER_IMAGE_NAME = 'springboot-helloworld'
+        DOCKER_IMAGE_TAG = "${env.Build_Number}"
+    }
 
-      sh "docker login -u admin -p admin123 ${dockerRepoUrl}"
-      sh "docker tag ${dockerImageName} ${dockerImageTag}"
-      sh "docker push ${dockerImageTag}"
+    stages {
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    // Build the Docker image
+                    docker.build("${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}")
+                }
+            }
+        }
+        
+        stage('Push Docker Image to Docker Hub') {
+            steps {
+                script {
+				docker.withRegistry('https://index.docker.io/v1/', DOCKER_HUB_CREDENTIALS) {
+                        docker.image("${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}").push()
+                    // Log in to Docker Hub
+                    //#docker.withRegistry('https://index.docker.io/v1/', DOCKER_HUB_USERNAME, DOCKER_HUB_PASSWORD) {
+                        // Push the Docker image to Docker Hub
+                        //#docker.image("${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}").push()
+                    }
+                }
+            }
+        }
     }
 }
